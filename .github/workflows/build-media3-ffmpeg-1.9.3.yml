@@ -143,6 +143,14 @@ jobs:
           so MediaCodec stays preferred and FFmpeg is fallback.
           EOF
 
+      - name: Upload build outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: media3-1.9.3-ffmpeg-sketchware
+          path: build-output
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Commit build outputs to repository
         run: |
           git config user.name "Streamix Media3 Builder"
