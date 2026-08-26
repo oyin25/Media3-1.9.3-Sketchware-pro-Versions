@@ -76,8 +76,14 @@ jobs:
         run: |
           rm -rf build-output
           mkdir -p build-output/aar build-output/unpacked
-          AAR="$(find media3/libraries/decoder_ffmpeg/build/outputs/aar -name '*release*.aar' | head -1)"
+          echo "AAR candidates:"
+          find media3 -type f -name '*.aar' -print | sort
+          AAR="$(find media3 -type f -name '*.aar' -print | grep -E 'decoder[-_]ffmpeg|lib-decoder-ffmpeg' | head -1)"
+          if [ -z "$AAR" ]; then
+            AAR="$(find media3 -type f -name '*.aar' -print | head -1)"
+          fi
           test -n "$AAR"
+          echo "Using AAR: $AAR"
           cp "$AAR" build-output/aar/media3-decoder-ffmpeg-1.9.3.aar
           cd build-output/unpacked
           unzip -q ../aar/media3-decoder-ffmpeg-1.9.3.aar
