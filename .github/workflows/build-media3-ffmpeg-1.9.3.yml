@@ -1,0 +1,126 @@
+name: Build Media3 1.9.3 FFmpeg extension
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-media3-ffmpeg-1.9.3.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout build repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1"
+
+      - name: Fetch exact Media3 1.9.3 source
+        run: |
+          git clone --depth 1 --branch 1.9.3 https://github.com/androidx/media.git media3
+
+      - name: Download Android NDK r26b
+        run: |
+          wget -q https://dl.google.com/android/repository/android-ndk-r26b-linux.zip
+          unzip -q android-ndk-r26b-linux.zip
+          echo "NDK_PATH=$PWD/android-ndk-r26b" >> "$GITHUB_ENV"
+
+      - name: Download FFmpeg 6.0
+        run: |
+          wget -q https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz
+          tar -xf ffmpeg-6.0.tar.xz
+          mv ffmpeg-6.0 media3/libraries/decoder_ffmpeg/src/main/jni/ffmpeg
+
+      - name: Build FFmpeg static audio libraries
+        working-directory: media3/libraries/decoder_ffmpeg/src/main/jni
+        run: |
+          chmod +x build_ffmpeg.sh
+          ./build_ffmpeg.sh \
+            "$GITHUB_WORKSPACE/media3/libraries/decoder_ffmpeg/src/main" \
+            "$NDK_PATH" \
+            linux-x86_64 \
+            23 \
+            aac mp3 ac3 eac3 truehd dca vorbis opus amrnb amrwb flac alac pcm_mulaw pcm_alaw
+
+      - name: Pin Gradle JNI wrapper to NDK r26b
+        working-directory: media3
+        run: |
+          printf 'sdk.dir=%s\nndk.dir=%s\n' "$ANDROID_SDK_ROOT" "$NDK_PATH" > local.properties
+
+      - name: Build Media3 1.9.3 decoder-ffmpeg release AAR
+        working-directory: media3
+        run: |
+          chmod +x gradlew
+          ./gradlew :lib-decoder-ffmpeg:assembleRelease --no-daemon --stacktrace
+
+      - name: Prepare unpacked build outputs
+        run: |
+          rm -rf build-output
+          mkdir -p build-output/aar build-output/unpacked
+          AAR="$(find media3/libraries/decoder_ffmpeg/build/outputs/aar -name '*release*.aar' | head -1)"
+          test -n "$AAR"
+          cp "$AAR" build-output/aar/media3-decoder-ffmpeg-1.9.3.aar
+          cd build-output/unpacked
+          unzip -q ../aar/media3-decoder-ffmpeg-1.9.3.aar
+          cd "$GITHUB_WORKSPACE"
+          find build-output -maxdepth 4 -type f -print | sort
+          sha256sum build-output/aar/media3-decoder-ffmpeg-1.9.3.aar > build-output/SHA256SUMS.txt
+          find build-output/unpacked -type f -name '*.so' -print0 | sort -z | xargs -0 sha256sum >> build-output/SHA256SUMS.txt
+
+      - name: Write build manifest
+        run: |
+          cat > build-output/BUILD-INFO.txt <<'EOF'
+          Media3 decoder_ffmpeg build for Streamix
+          Media3: 1.9.3
+          FFmpeg: 6.0
+          FFmpeg build NDK: r26b / 26.1.10909125
+          FFmpeg Android API: 23
+          Renderer purpose: audio software fallback
+          Enabled decoders:
+          - aac
+          - mp3
+          - ac3
+          - eac3
+          - truehd
+          - dca
+          - vorbis
+          - opus
+          - amrnb
+          - amrwb
+          - flac
+          - alac
+          - pcm_mulaw
+          - pcm_alaw
+          The final Streamix integration should use:
+          DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+          so MediaCodec stays preferred and FFmpeg is fallback.
+          EOF
+
+      - name: Commit build outputs to repository
+        run: |
+          git config user.name "Streamix Media3 Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add build-output
+          if git diff --cached --quiet; then
+            echo "No output changes"
+          else
+            git commit -m "Build Media3 1.9.3 FFmpeg audio extension [skip ci]"
+            git push
+          fi
