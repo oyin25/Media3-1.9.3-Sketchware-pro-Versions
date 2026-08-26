@@ -1,0 +1,24 @@
+Media3 decoder_ffmpeg build for Streamix
+Media3: 1.9.3
+FFmpeg: 6.0
+FFmpeg build NDK: r26b / 26.1.10909125
+FFmpeg Android API: 23
+Renderer purpose: audio software fallback
+Enabled decoders:
+- aac
+- mp3
+- ac3
+- eac3
+- truehd
+- dca
+- vorbis
+- opus
+- amrnb
+- amrwb
+- flac
+- alac
+- pcm_mulaw
+- pcm_alaw
+The final Streamix integration should use:
+DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+so MediaCodec stays preferred and FFmpeg is fallback.
