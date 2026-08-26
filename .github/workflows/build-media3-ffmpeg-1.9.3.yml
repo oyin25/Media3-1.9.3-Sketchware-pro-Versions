@@ -86,6 +86,28 @@ jobs:
           sha256sum build-output/aar/media3-decoder-ffmpeg-1.9.3.aar > build-output/SHA256SUMS.txt
           find build-output/unpacked -type f -name '*.so' -print0 | sort -z | xargs -0 sha256sum >> build-output/SHA256SUMS.txt
 
+      - name: Prepare Sketchware Pro local-library payload
+        run: |
+          rm -rf build-output/sketchware
+          mkdir -p build-output/sketchware/d8
+          cp build-output/unpacked/classes.jar build-output/sketchware/ffmpeg-extension-classes.jar
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/d8" \
+            --min-api 23 \
+            --lib "$ANDROID_SDK_ROOT/platforms/android-35/android.jar" \
+            --output build-output/sketchware/d8 \
+            build-output/unpacked/classes.jar
+          mv build-output/sketchware/d8/classes.dex build-output/sketchware/classes2.dex
+          rmdir build-output/sketchware/d8
+          if [ -d build-output/unpacked/jni ]; then
+            cp -R build-output/unpacked/jni build-output/sketchware/jni
+          fi
+          test -f build-output/sketchware/classes2.dex
+          test -f build-output/sketchware/jni/arm64-v8a/libffmpegJNI.so
+          test -f build-output/sketchware/jni/armeabi-v7a/libffmpegJNI.so
+          find build-output/sketchware -type f -print | sort
+          sha256sum build-output/sketchware/classes2.dex >> build-output/SHA256SUMS.txt
+          find build-output/sketchware/jni -type f -name '*.so' -print0 | sort -z | xargs -0 sha256sum >> build-output/SHA256SUMS.txt
+
       - name: Write build manifest
         run: |
           cat > build-output/BUILD-INFO.txt <<'EOF'
