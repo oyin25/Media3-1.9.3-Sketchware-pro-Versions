@@ -30,7 +30,7 @@ jobs:
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
 
       - name: Fetch exact Media3 1.9.3 source
         run: |
@@ -59,10 +59,12 @@ jobs:
             23 \
             aac mp3 ac3 eac3 truehd dca vorbis opus amrnb amrwb flac alac pcm_mulaw pcm_alaw
 
-      - name: Pin Gradle JNI wrapper to NDK r26b
+      - name: Configure Android SDK for Media3 JNI wrapper
         working-directory: media3
         run: |
-          printf 'sdk.dir=%s\nndk.dir=%s\n' "$ANDROID_SDK_ROOT" "$NDK_PATH" > local.properties
+          # Media3 1.9.3's Gradle config expects NDK 27.0.12077973.
+          # FFmpeg itself remains compiled above with the officially-tested r26b.
+          printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > local.properties
 
       - name: Build Media3 1.9.3 decoder-ffmpeg release AAR
         working-directory: media3
